@@ -1,0 +1,6 @@
+[submodule "slideshow/SDL"]
+	path = slideshow/SDL
+	url = https://github.com/libsdl-org/SDL.git
+[submodule "slideshow/stb_image/stb"]
+	path = slideshow/stb_image/stb
+	url = https://github.com/nothings/stb.git
