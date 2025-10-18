@@ -305,6 +305,7 @@ int main(int, char**)
         return 1;
     }
     SDL_GetWindowSize(window, &display_w, &display_h);
+    SDL_HideCursor();
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     if (gl_context == nullptr)
     {
@@ -376,6 +377,7 @@ int main(int, char**)
             case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
                 if (event.window.windowID != SDL_GetWindowID(window))
                     break;
+                //else falltrough
             case SDL_EVENT_QUIT:
                 done = true;
                 break;
@@ -388,7 +390,7 @@ int main(int, char**)
                 switch (ev.code)
                 {
                 case 57: //space
-                    paused = !paused;
+                    paused = !paused; //FIXME paused indicator
                     break; 
 
                 case 105: //left = prev

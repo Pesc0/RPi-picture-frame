@@ -12,6 +12,8 @@ set(RPI_USE_BROADCOM_DRIVER ON)
 set(RPI_HAS_NEON OFF)
 
 
+set(CMAKE_BUILD_TYPE Release) #Important on RPi
+
 #===========================================================================================
 
 
@@ -59,6 +61,10 @@ target_sources(slideshow PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 if(RPI_USE_BROADCOM_DRIVER)
     target_link_directories(slideshow PUBLIC /opt/vc/lib)
     target_link_libraries(slideshow PUBLIC brcmGLESv2 brcmEGL)
+    set_target_properties(slideshow PROPERTIES 
+                BUILD_RPATH "/opt/vc/lib"
+                INSTALL_RPATH "/opt/vc/lib"
+    )
 else()
     target_link_libraries(slideshow PUBLIC GLESv2)
 endif()
