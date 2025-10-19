@@ -1,7 +1,13 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengles2.h>
-#include <stb_image.h>
+#ifdef USE_STB_IMAGE
+    #include <stb_image.h>
+#endif
+#ifdef USE_TURBO_JPEG
+    #include <turbojpeg.h>
+    #include <fstream>
+#endif
 
 #include <math.h>
 #include <vector>
@@ -39,6 +45,10 @@ bool paused = false;
 int display_w, display_h;
 GLint uFade;
 
+#ifdef USE_TURBO_JPEG
+    static tjhandle g_tj = nullptr;
+    static std::vector<unsigned char> g_rgbBuf; // reusable buffer
+#endif
 
 bool load_file_list(const std::string& folderPath) {
     namespace fs = std::filesystem;
@@ -175,35 +185,110 @@ GLuint create_texture() {
     return tex;
 }
 
-bool load_image(const std::string& path, GLenum texture_unit) {
-    int width, height, channels;
-#ifdef DEBUG
-    Uint64 begin = SDL_GetPerformanceCounter(); 
-#endif
-    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb);
-    if (!data) {
-        SDL_Log("Failed to load image %s: %s", path.c_str(), stbi_failure_reason());
-        broken_files.push_back(path);
-        return false;
+#ifdef USE_STB_IMAGE
+    bool load_image(const std::string& path, GLenum texture_unit) {
+        int width, height, channels;
+    #ifdef DEBUG
+        Uint64 begin = SDL_GetPerformanceCounter(); 
+    #endif
+        unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb);
+        if (!data) {
+            SDL_Log("Failed to load image %s: %s", path.c_str(), stbi_failure_reason());
+            broken_files.push_back(path);
+            return false;
+        }
+    #ifdef DEBUG
+        Uint64 read = SDL_GetPerformanceCounter(); 
+    #endif
+        glActiveTexture(texture_unit); // bind texture unit, texture is already bound inside it
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data); //glTexSubImage2D does not work on RPi
+    #ifdef DEBUG
+        Uint64 uploaded = SDL_GetPerformanceCounter(); 
+    #endif
+        stbi_image_free(data);
+    #ifdef DEBUG
+        Uint64 end = SDL_GetPerformanceCounter(); 
+        float read_time = (read - begin) / 1000000000.0f; //nanoseconds to seconds
+        float upload_time = (uploaded - read) / 1000000000.0f; //nanoseconds to seconds
+        float total_time = (end - begin) / 1000000000.0f; //nanoseconds to seconds
+        SDL_Log("Loaded %s in %fs, uploaded to GPU in %fs, total: %fs", path.c_str(), read_time, upload_time, total_time);
+    #endif
+        return true;
     }
-#ifdef DEBUG
-    Uint64 read = SDL_GetPerformanceCounter(); 
 #endif
-    glActiveTexture(texture_unit); // bind texture unit, texture is already bound inside it
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data); //glTexSubImage2D does not work on RPi
-#ifdef DEBUG
-    Uint64 uploaded = SDL_GetPerformanceCounter(); 
+
+#ifdef USE_TURBO_JPEG
+    bool load_image(const std::string& path, GLenum texture_unit) {
+        if (!g_tj) g_tj = tjInitDecompress();
+    #ifdef DEBUG
+        Uint64 begin = SDL_GetPerformanceCounter();
+    #endif
+
+        // --- Read JPEG file ---
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        if (!file) {
+            SDL_Log("Failed to open %s", path.c_str());
+            return false;
+        }
+        const auto size = file.tellg();
+        file.seekg(0, std::ios::beg);
+        std::vector<unsigned char> jpegBuf(size);
+        if (!file.read((char*)jpegBuf.data(), size)) {
+            SDL_Log("Failed to read %s", path.c_str());
+            return false;
+        }
+
+    #ifdef DEBUG
+        Uint64 read = SDL_GetPerformanceCounter();
+    #endif
+
+        // --- Get JPEG info ---
+        int width, height, subsamp, colorspace;
+        if (tjDecompressHeader3(g_tj, jpegBuf.data(), jpegBuf.size(),
+                                &width, &height, &subsamp, &colorspace) != 0) {
+            SDL_Log("TurboJPEG header read failed: %s", tjGetErrorStr());
+            return false;
+        }
+
+        const size_t requiredSize = width * height * 3;
+        if (g_rgbBuf.size() < requiredSize)
+            g_rgbBuf.resize(requiredSize);
+
+        // --- Decode directly into the reusable buffer ---
+        if (tjDecompress2(g_tj, jpegBuf.data(), jpegBuf.size(),
+                        g_rgbBuf.data(), width, 0, height,
+                        TJPF_RGB, TJFLAG_FASTDCT | TJFLAG_FASTUPSAMPLE | TJFLAG_BOTTOMUP) != 0) {
+            SDL_Log("TurboJPEG decompress failed: %s", tjGetErrorStr());
+            return false;
+        }
+
+    #ifdef DEBUG
+        Uint64 decode = SDL_GetPerformanceCounter();
+    #endif
+
+        // --- Upload to GL ---
+        glActiveTexture(texture_unit);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // avoid padding issues
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height,
+                    0, GL_RGB, GL_UNSIGNED_BYTE, g_rgbBuf.data());
+
+    #ifdef DEBUG
+        Uint64 uploaded = SDL_GetPerformanceCounter();
+    #endif
+    #ifdef DEBUG
+        Uint64 end = SDL_GetPerformanceCounter();
+        double freq = (double)SDL_GetPerformanceFrequency();
+        double read_time = (read - begin) / freq;
+        double decode_time = (decode - read) / freq;
+        double upload_time = (uploaded - decode) / freq;
+        double total_time = (end - begin) / freq;
+        SDL_Log("Loaded %s in %.3fs, decoded in %.3fs, uploaded in %.3fs, total %.3fs",
+                path.c_str(), read_time, decode_time, upload_time, total_time);
+    #endif
+
+        return true;
+    }
 #endif
-    stbi_image_free(data);
-#ifdef DEBUG
-    Uint64 end = SDL_GetPerformanceCounter(); 
-    float read_time = (read - begin) / 1000000000.0f; //nanoseconds to seconds
-    float upload_time = (uploaded - read) / 1000000000.0f; //nanoseconds to seconds
-    float total_time = (end - begin) / 1000000000.0f; //nanoseconds to seconds
-    SDL_Log("Loaded %s in %fs, uploaded to GPU in %fs, total: %fs", path.c_str(), read_time, upload_time, total_time);
-#endif
-    return true;
-}
 
 bool load_image_to_back_texture(int file_idx) {
     back_texture_file_idx = file_idx;
@@ -348,7 +433,9 @@ int main(int, char**)
 
     uFade = glGetUniformLocation(shaderProgram, "uFade");
 
-    stbi_set_flip_vertically_on_load(1);
+    #ifdef USE_STB_IMAGE
+        stbi_set_flip_vertically_on_load(1);
+    #endif
 
     int event_fd = open("/dev/input/event0", O_RDONLY | O_NONBLOCK);
     if (event_fd < 0) { perror("open"); return 1; }

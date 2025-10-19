@@ -14,6 +14,10 @@ set(RPI_HAS_NEON OFF)
 
 set(CMAKE_BUILD_TYPE Release) #Important on RPi
 
+
+set(USE_STB_IMAGE OFF)
+set(USE_TURBO_JPEG ON)
+
 #===========================================================================================
 
 
@@ -50,10 +54,16 @@ endif()
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/SDL)
 
 
-add_library(stb_image STATIC)
-target_sources(stb_image PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stb_image/stb_image.cpp)
-target_include_directories(stb_image PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/stb_image/stb)
+if(USE_STB_IMAGE)
+    add_library(stb_image STATIC)
+    target_sources(stb_image PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stb_image/stb_image.cpp)
+    target_include_directories(stb_image PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/stb_image/stb)
+endif()
 
+if(USE_TURBO_JPEG)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(JPEG_TURBO REQUIRED libturbojpeg)
+endif()
 
 add_executable(slideshow)
 target_sources(slideshow PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
@@ -69,5 +79,17 @@ else()
     target_link_libraries(slideshow PUBLIC GLESv2)
 endif()
 
-target_link_libraries(slideshow PUBLIC stb_image SDL3-shared ${CMAKE_DL_LIBS})
+target_link_libraries(slideshow PUBLIC SDL3-shared ${CMAKE_DL_LIBS})
 set_target_properties(slideshow PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
+
+if(USE_STB_IMAGE)
+    target_compile_definitions(slideshow PUBLIC -DUSE_STB_IMAGE)
+    target_link_libraries(slideshow PUBLIC stb_image)
+endif()
+
+if(USE_TURBO_JPEG)
+    target_compile_definitions(slideshow PUBLIC -DUSE_TURBO_JPEG)
+    target_include_directories(slideshow PRIVATE ${JPEG_TURBO_INCLUDE_DIRS})
+    target_link_libraries(slideshow PRIVATE ${JPEG_TURBO_LIBRARIES})
+endif()
