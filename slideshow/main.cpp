@@ -1,15 +1,9 @@
 
+//#define DEBUG
+//#define DEBUG_RENDER
+
 #include "SDL_GL_window.h"
-
-#ifdef USE_STB_IMAGE
-    #include <stb_image.h>
-#endif
-#ifdef USE_TURBO_JPEG
-    #include <turbojpeg.h>
-    #include <fstream>
-#endif
-
-
+#include "load_image.h"
 
 #include <math.h>
 #include <vector>
@@ -21,8 +15,7 @@
 #include <unistd.h>
 
 
-//#define DEBUG
-//#define DEBUG_RENDER
+
 
 #define DEFAULT_IMG_DISPLAY_TIME 60.0f 
 #define DEFAULT_IMG_FADE_TIME 0.5f
@@ -44,10 +37,7 @@ float curr_state_time_spent = 0.0f;
 bool paused = false;
 
 
-#ifdef USE_TURBO_JPEG
-    static tjhandle g_tj = nullptr;
-    static std::vector<unsigned char> g_rgbBuf; // reusable buffer
-#endif
+
 
 bool load_file_list(const std::string& folderPath) {
     namespace fs = std::filesystem;
@@ -95,111 +85,6 @@ bool load_file_list(const std::string& folderPath) {
 }
 
 
-
-#ifdef USE_STB_IMAGE
-    bool load_image(const std::string& path, GLenum texture_unit) {
-        int width, height, channels;
-    #ifdef DEBUG
-        Uint64 begin = SDL_GetPerformanceCounter(); 
-    #endif
-        unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb);
-        if (!data) {
-            SDL_Log("Failed to load image %s: %s", path.c_str(), stbi_failure_reason());
-            broken_files.push_back(path);
-            return false;
-        }
-    #ifdef DEBUG
-        Uint64 read = SDL_GetPerformanceCounter(); 
-    #endif
-        glActiveTexture(texture_unit); // bind texture unit, texture is already bound inside it
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data); //glTexSubImage2D does not work on RPi
-    #ifdef DEBUG
-        Uint64 uploaded = SDL_GetPerformanceCounter(); 
-    #endif
-        stbi_image_free(data);
-    #ifdef DEBUG
-        Uint64 end = SDL_GetPerformanceCounter(); 
-        float read_time = (read - begin) / 1000000000.0f; //nanoseconds to seconds
-        float upload_time = (uploaded - read) / 1000000000.0f; //nanoseconds to seconds
-        float total_time = (end - begin) / 1000000000.0f; //nanoseconds to seconds
-        SDL_Log("Loaded %s in %fs, uploaded to GPU in %fs, total: %fs", path.c_str(), read_time, upload_time, total_time);
-    #endif
-        return true;
-    }
-#endif
-
-#ifdef USE_TURBO_JPEG
-    bool load_image(const std::string& path, GLenum texture_unit) {
-        if (!g_tj) g_tj = tjInitDecompress();
-    #ifdef DEBUG
-        Uint64 begin = SDL_GetPerformanceCounter();
-    #endif
-
-        // --- Read JPEG file ---
-        std::ifstream file(path, std::ios::binary | std::ios::ate);
-        if (!file) {
-            SDL_Log("Failed to open %s", path.c_str());
-            return false;
-        }
-        const auto size = file.tellg();
-        file.seekg(0, std::ios::beg);
-        std::vector<unsigned char> jpegBuf(size);
-        if (!file.read((char*)jpegBuf.data(), size)) {
-            SDL_Log("Failed to read %s", path.c_str());
-            return false;
-        }
-
-    #ifdef DEBUG
-        Uint64 read = SDL_GetPerformanceCounter();
-    #endif
-
-        // --- Get JPEG info ---
-        int width, height, subsamp, colorspace;
-        if (tjDecompressHeader3(g_tj, jpegBuf.data(), jpegBuf.size(),
-                                &width, &height, &subsamp, &colorspace) != 0) {
-            SDL_Log("TurboJPEG header read failed: %s", tjGetErrorStr());
-            return false;
-        }
-
-        const size_t requiredSize = width * height * 3;
-        if (g_rgbBuf.size() < requiredSize)
-            g_rgbBuf.resize(requiredSize);
-
-        // --- Decode directly into the reusable buffer ---
-        if (tjDecompress2(g_tj, jpegBuf.data(), jpegBuf.size(),
-                        g_rgbBuf.data(), width, 0, height,
-                        TJPF_RGB, TJFLAG_FASTDCT | TJFLAG_FASTUPSAMPLE | TJFLAG_BOTTOMUP) != 0) {
-            SDL_Log("TurboJPEG decompress failed: %s", tjGetErrorStr());
-            return false;
-        }
-
-    #ifdef DEBUG
-        Uint64 decode = SDL_GetPerformanceCounter();
-    #endif
-
-        // --- Upload to GL ---
-        glActiveTexture(texture_unit);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // avoid padding issues
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height,
-                    0, GL_RGB, GL_UNSIGNED_BYTE, g_rgbBuf.data());
-
-    #ifdef DEBUG
-        Uint64 uploaded = SDL_GetPerformanceCounter();
-    #endif
-    #ifdef DEBUG
-        Uint64 end = SDL_GetPerformanceCounter();
-        double freq = (double)SDL_GetPerformanceFrequency();
-        double read_time = (read - begin) / freq;
-        double decode_time = (decode - read) / freq;
-        double upload_time = (uploaded - decode) / freq;
-        double total_time = (end - begin) / freq;
-        SDL_Log("Loaded %s in %.3fs, decoded in %.3fs, uploaded in %.3fs, total %.3fs",
-                path.c_str(), read_time, decode_time, upload_time, total_time);
-    #endif
-
-        return true;
-    }
-#endif
 
 bool load_image_to_back_texture(int file_idx) {
     back_texture_file_idx = file_idx;
@@ -256,10 +141,6 @@ int main(int, char**)
     SDL_GL_window my_window;
 
 
-    #ifdef USE_STB_IMAGE
-        stbi_set_flip_vertically_on_load(1);
-    #endif
-
     int event_fd = open("/dev/input/event0", O_RDONLY | O_NONBLOCK);
     if (event_fd < 0) { perror("open"); return 1; }
 
@@ -278,21 +159,7 @@ int main(int, char**)
         float ts = (crntTime - prevTime) / 1000000000.0f; //nanoseconds to seconds
         prevTime = crntTime;
 
-        // [If using SDL_MAIN_USE_CALLBACKS: call ImGui_ImplSDL3_ProcessEvent() from your SDL_AppEvent() function]
-        SDL_Event event;
-        while (SDL_PollEvent(&event))
-        {
-            switch (event.type)
-            {
-            case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-                if (event.window.windowID != my_window.ID)
-                    break;
-                //else falltrough
-            case SDL_EVENT_QUIT:
-                done = true;
-                break;
-            }
-        }
+        if (my_window.wants_to_close()) done = true;
 
         struct input_event ev;
         while (read(event_fd, &ev, sizeof(ev)) > 0) {

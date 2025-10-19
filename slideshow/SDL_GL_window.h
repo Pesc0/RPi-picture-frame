@@ -10,12 +10,12 @@ public:
     ~SDL_GL_window();
 
     void render(float fade_amount);
-
-    SDL_WindowID ID;
+    bool wants_to_close();
 
 private:
     SDL_Window* window;
     SDL_GLContext gl_context;
+    SDL_WindowID ID;
 
     int display_w, display_h;
     GLint uFade;

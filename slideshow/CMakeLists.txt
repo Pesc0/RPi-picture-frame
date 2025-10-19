@@ -69,13 +69,14 @@ add_executable(slideshow)
 target_sources(slideshow PUBLIC 
             ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/SDL_GL_window.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/load_image.cpp
 )
 
 if(RPI_USE_BROADCOM_DRIVER)
     target_link_directories(slideshow PUBLIC /opt/vc/lib)
     target_link_libraries(slideshow PUBLIC brcmGLESv2 brcmEGL)
     set_target_properties(slideshow PROPERTIES 
-                BUILD_RPATH "/opt/vc/lib"
+                BUILD_RPATH "/opt/vc/lib" #FIXME
                 INSTALL_RPATH "/opt/vc/lib"
     )
 else()
