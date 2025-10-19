@@ -1,17 +1,33 @@
 #include "load_image.h"
 
-
-#ifdef USE_STB_IMAGE
-    #include <stb_image.h>
-#endif
-#ifdef USE_TURBO_JPEG
-    #include <turbojpeg.h>
-#endif
-
-
 #include <fstream>
+#include <string>
 #include <vector>
 #include <SDL3/SDL.h>
+#include <cstddef>
+
+//#include <algorithm>
+
+
+bool _load_image(unsigned char *&pixeldata_out, size_t &pixeldata_len_out, const std::vector<unsigned char> &filebuf_in, const std::string &path_in, int &width, int &height);
+void _free_pixeldata(unsigned char *pixeldata, size_t pixeldata_len);
+
+#ifdef USE_STB_IMAGE
+    #include <loader_stb.cpp>
+#endif
+#ifdef USE_TURBO_JPEG
+    #include <loader_turbojpeg.cpp>
+#endif
+#ifdef USE_MMAL
+    #include <loader_mmal.cpp>
+#endif
+#ifdef USE_V4L2
+    #include <loader_v4l2.cpp>
+#endif
+
+#if !defined(LOADER_GL_PIXEL_FORMAT) 
+    #define LOADER_GL_PIXEL_FORMAT GL_RGB
+#endif
 
 
 #ifdef DEBUG
@@ -30,7 +46,6 @@
         const std::string _name;
     };
 #endif
-
 
 
 bool load_image(const std::string& path, GLenum texture_unit) { 
@@ -57,56 +72,37 @@ bool load_image(const std::string& path, GLenum texture_unit) {
         }
     }
 
-    int width, height;
-    unsigned char* pixeldata;
+    int width = 0, height = 0;
+    unsigned char* pixeldata = nullptr;
+    size_t pixeldata_len = 0;    
+
     {
         #ifdef DEBUG
             ScopedTimer timer("decoded image"); 
         #endif
 
-        #ifdef USE_STB_IMAGE
-            int channels;
-            stbi_set_flip_vertically_on_load(1);
-            pixeldata = stbi_load_from_memory(filebuf.data(), filebuf.size(), &width, &height, &channels, STBI_rgb); 
-            if (!pixeldata) {
-                SDL_Log("Failed to load image %s: %s", path.c_str(), stbi_failure_reason());
-                return false;
-            }
-        #endif
-
-        #ifdef USE_TURBO_JPEG
-            static tjhandle g_tj = nullptr;
-            if (!g_tj) g_tj = tjInitDecompress();
-
-            int subsamp, colorspace;
-            if (tjDecompressHeader3(g_tj, filebuf.data(), filebuf.size(),
-                                    &width, &height, &subsamp, &colorspace) != 0) {
-                SDL_Log("TurboJPEG header read failed: %s", tjGetErrorStr());
-                return false;
-            }
-
-            pixeldata = (unsigned char*)malloc(width*height*3*sizeof(unsigned char));
-
-            if (tjDecompress2(g_tj, filebuf.data(), filebuf.size(),
-                            pixeldata, width, 0, height,
-                            TJPF_RGB, TJFLAG_FASTDCT | TJFLAG_FASTUPSAMPLE | TJFLAG_BOTTOMUP) != 0) {
-                SDL_Log("TurboJPEG decompress failed: %s", tjGetErrorStr());
-                return false;
-            }
-        #endif
+        if (!_load_image(pixeldata, pixeldata_len, filebuf, path, width, height)) {
+            _free_pixeldata(pixeldata, pixeldata_len);
+            return false;
+        }
     }
 
     {
         #ifdef DEBUG
             ScopedTimer timer("uploaded to GPU"); 
         #endif
+        
+        if (!pixeldata || width <= 0 || height <= 0) {
+            SDL_Log("Invalid decoded data for GL upload ptr:%d w:%d h:%d", pixeldata, width, height);
+            return false;
+        }
 
         glActiveTexture(texture_unit); // bind texture unit, texture is already bound inside it
         //glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // avoid padding issues
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, pixeldata); //glTexSubImage2D does not work on RPi
-    }
+        glTexImage2D(GL_TEXTURE_2D, 0, LOADER_GL_PIXEL_FORMAT, width, height, 0, LOADER_GL_PIXEL_FORMAT, GL_UNSIGNED_BYTE, pixeldata); //glTexSubImage2D does not work on RPi
 
-    if(pixeldata) free(pixeldata);
+        _free_pixeldata(pixeldata, pixeldata_len);
+    }
 
     return true;
 }

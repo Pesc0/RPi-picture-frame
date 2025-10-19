@@ -137,19 +137,26 @@ int main(int, char**)
 
     SDL_GL_window my_window;
 
+    //declared here to allow goto
+    int event_fd;
+    Uint64 prevTime;
+    bool done;
 
-    int event_fd = open("/dev/input/event0", O_RDONLY | O_NONBLOCK);
-    if (event_fd < 0) { perror("open"); return 1; }
+    if (!init_img_loader()) goto exit_error;
+
+    event_fd = open("/dev/input/event0", O_RDONLY | O_NONBLOCK);
+    if (event_fd < 0) { perror("open"); goto exit_error; }
 
     // first render
-    if (!load_file_list(folder_path)) return 1;
-    if (!load_image(files[curr_file_idx], GL_TEXTURE0)) return 1; //load initial image on texture zero
+    if (!load_file_list(folder_path)) goto exit_error;
+    if (!load_image(files[curr_file_idx], GL_TEXTURE0)) goto exit_error; //load initial image on texture zero
     my_window.render(0.0f);
-    Uint64 prevTime = SDL_GetPerformanceCounter(); 
+    my_window.render(0.0f);
+    prevTime = SDL_GetPerformanceCounter(); 
     SDL_Delay(100);
 
     // Main loop
-    bool done = false;
+    done = false;
     while (!done)
     {
         Uint64 crntTime = SDL_GetPerformanceCounter();
@@ -169,14 +176,14 @@ int main(int, char**)
 
                 case 105: //left = prev
                     if (curr_state == FADING) break;
-                    if(!load_prev_image()) return 1;
+                    if(!load_prev_image()) goto exit_error;
                     curr_state_time_spent = img_fade_time_s; //jump directly to next image, don't fade
                     curr_state = FADING;
                     break;
 
                 case 106: //right = next
                     if (curr_state == FADING) break;
-                    if(!load_next_image()) return 1;
+                    if(!load_next_image()) goto exit_error;
                     curr_state_time_spent = img_fade_time_s; //jump directly to next image, don't fade
                     curr_state = FADING;
                     break;
@@ -196,7 +203,7 @@ int main(int, char**)
                     break;
                 }
                 else if (!new_image_loaded_since_fade && curr_state_time_spent > img_display_time_s / 2) {
-                    if(!load_next_image()) return 1;
+                    if(!load_next_image()) goto exit_error;
                 }
             }
             SDL_Delay(100); //slow down but allow polling for events every 100ms
@@ -218,7 +225,7 @@ int main(int, char**)
                 new_image_loaded_since_fade = false;
                 curr_state_time_spent = 0;
                 curr_state = DISPLAY;
-                if (!load_file_list(folder_path)) return 1;
+                if (!load_file_list(folder_path)) goto exit_error;
             }
             break;
         }
@@ -227,5 +234,10 @@ int main(int, char**)
 #endif
     }
 
+    loader_cleanup(); 
     return 0;
+
+exit_error:
+    loader_cleanup(); 
+    return 1;
 }

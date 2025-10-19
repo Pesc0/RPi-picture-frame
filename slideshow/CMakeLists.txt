@@ -5,20 +5,41 @@ project(slideshow LANGUAGES C CXX)
 
 # Link against brcmGLESv2 instead of GLESv2. 
 # Note that Broadcom drivers are NOT available on the 64-bit version of RaspberrypiOS (aarch64), they're only available on 32-bit (armv7l).
-set(RPI_USE_BROADCOM_DRIVER ON)
+set(RPI_USE_BROADCOM_DRIVER OFF)
+
+set(RPI_USE_HW_JPEG_DECODE OFF) 
+
 
 # Enable if your Raspberry supports NEON. Generally from Pi2 onwards this is supported. 
 # This enables optimizations in the SDL library. 
 set(RPI_HAS_NEON OFF)
 
 
-set(CMAKE_BUILD_TYPE Release) #Important on RPi
+set(CMAKE_BUILD_TYPE Release) #Important on RPi 
 
-
-set(USE_STB_IMAGE OFF)
-set(USE_TURBO_JPEG ON)
 
 #===========================================================================================
+
+set(USE_STB_IMAGE OFF)
+set(USE_TURBO_JPEG OFF)
+set(USE_MMAL OFF)
+set(USE_V4L2 OFF)
+
+if(RPI_USE_HW_JPEG_DECODE)
+    message( FATAL_ERROR "Did not manage to get MMAL or V4L2 working at all. gave up, turbojpeg is good enough for this purpose." )
+
+    if(RPI_USE_BROADCOM_DRIVER)
+        set(USE_MMAL ON)
+    else()
+        set(USE_V4L2 ON)
+    endif()
+
+else()
+
+    set(USE_TURBO_JPEG ON)
+
+endif()
+
 
 
 set(SDL_AUDIO OFF)
@@ -71,6 +92,8 @@ target_sources(slideshow PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/SDL_GL_window.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/load_image.cpp
 )
+target_include_directories(slideshow PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 
 if(RPI_USE_BROADCOM_DRIVER)
     target_link_directories(slideshow PUBLIC /opt/vc/lib)
@@ -94,9 +117,19 @@ endif()
 
 if(USE_TURBO_JPEG)
     target_compile_definitions(slideshow PUBLIC -DUSE_TURBO_JPEG)
-    target_include_directories(slideshow PRIVATE ${JPEG_TURBO_INCLUDE_DIRS})
-    target_link_libraries(slideshow PRIVATE ${JPEG_TURBO_LIBRARIES})
+    target_include_directories(slideshow PUBLIC ${JPEG_TURBO_INCLUDE_DIRS})
+    target_link_libraries(slideshow PUBLIC ${JPEG_TURBO_LIBRARIES})
 endif()
 
-#target_compile_definitions(slideshow PUBLIC -DDEBUG)
+if(USE_MMAL)
+    target_compile_definitions(slideshow PUBLIC -DUSE_MMAL)
+    target_include_directories(slideshow PUBLIC /opt/vc/include)
+    target_link_libraries(slideshow PUBLIC bcm_host vcos vchiq_arm mmal mmal_core mmal_util mmal_vc_client)
+endif()
+
+if(USE_V4L2)
+    target_compile_definitions(slideshow PUBLIC -DUSE_V4L2)
+endif()
+
+target_compile_definitions(slideshow PUBLIC -DDEBUG)
 #target_compile_definitions(slideshow PUBLIC -DDEBUG_RENDER)
