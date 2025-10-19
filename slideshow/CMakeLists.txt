@@ -97,3 +97,6 @@ if(USE_TURBO_JPEG)
     target_include_directories(slideshow PRIVATE ${JPEG_TURBO_INCLUDE_DIRS})
     target_link_libraries(slideshow PRIVATE ${JPEG_TURBO_LIBRARIES})
 endif()
+
+#target_compile_definitions(slideshow PUBLIC -DDEBUG)
+#target_compile_definitions(slideshow PUBLIC -DDEBUG_RENDER)

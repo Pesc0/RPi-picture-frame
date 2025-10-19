@@ -1,7 +1,4 @@
 
-//#define DEBUG
-//#define DEBUG_RENDER
-
 #include "SDL_GL_window.h"
 #include "load_image.h"
 
