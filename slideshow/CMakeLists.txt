@@ -66,7 +66,10 @@ if(USE_TURBO_JPEG)
 endif()
 
 add_executable(slideshow)
-target_sources(slideshow PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
+target_sources(slideshow PUBLIC 
+            ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/SDL_GL_window.cpp
+)
 
 if(RPI_USE_BROADCOM_DRIVER)
     target_link_directories(slideshow PUBLIC /opt/vc/lib)
