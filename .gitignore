@@ -1,3 +1,7 @@
 slideshow/build
-prova.py
+proxy/constants.py
+proxy/Ubuntu-R.ttf
+downloader/constants.py
+downloader/*.jpg
 .vscode
+__pycache__
