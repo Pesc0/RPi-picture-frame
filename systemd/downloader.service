@@ -1,0 +1,20 @@
+[Unit]
+Description=Immich image downloader
+After=network.target
+
+[Service]
+WorkingDirectory=/home/dietpi/RPi-picture-frame/downloader
+ExecStart=/usr/bin/python3 /home/dietpi/RPi-picture-frame/downloader/downloader.py
+
+Restart=always
+RestartSec=5
+
+User=dietpi
+Group=dietpi
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=immich-downloader
+
+[Install]
+WantedBy=multi-user.target

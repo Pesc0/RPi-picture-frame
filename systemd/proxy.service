@@ -1,0 +1,20 @@
+[Unit]
+Description=Immich slideshow proxy
+After=network.target
+
+[Service]
+WorkingDirectory=/home/user/RPi-picture-frame/proxy
+ExecStart=/usr/bin/python3 /home/user/RPi-picture-frame/proxy/proxy.py
+
+Restart=always
+RestartSec=5
+
+User=user
+Group=user
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=immich-proxy
+
+[Install]
+WantedBy=multi-user.target
