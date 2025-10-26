@@ -98,10 +98,10 @@ target_include_directories(slideshow PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 if(RPI_USE_BROADCOM_DRIVER)
     target_link_directories(slideshow PUBLIC /opt/vc/lib)
     target_link_libraries(slideshow PUBLIC brcmGLESv2 brcmEGL)
-    set_target_properties(slideshow PROPERTIES 
-                BUILD_RPATH "/opt/vc/lib" #FIXME
-                INSTALL_RPATH "/opt/vc/lib"
-    )
+    #set_target_properties(slideshow PROPERTIES 
+    #            BUILD_RPATH "/opt/vc/lib" 
+    #            INSTALL_RPATH "/opt/vc/lib"
+    #)
 else()
     target_link_libraries(slideshow PUBLIC GLESv2)
 endif()
@@ -131,5 +131,5 @@ if(USE_V4L2)
     target_compile_definitions(slideshow PUBLIC -DUSE_V4L2)
 endif()
 
-target_compile_definitions(slideshow PUBLIC -DDEBUG)
+#target_compile_definitions(slideshow PUBLIC -DDEBUG)
 #target_compile_definitions(slideshow PUBLIC -DDEBUG_RENDER)

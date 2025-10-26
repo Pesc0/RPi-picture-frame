@@ -21,7 +21,6 @@
 
 /* GLOBALS */
 std::vector<std::string> files;
-std::vector<std::string> broken_files; //files that can't be loaded //FIXME clear every now and then
 int curr_file_idx = 0;
 int back_texture_file_idx; 
 bool new_image_loaded_since_fade = false;
@@ -44,8 +43,7 @@ bool load_file_list(const std::string& folderPath) {
         if (fs::exists(folderPath) && fs::is_directory(folderPath)) {
             for (const auto& entry : fs::directory_iterator(folderPath)) {
                 //jpgs load in 1.4-1.6 seconds, pngs in 1.0-1.2 seconds but take much more space in filesystem
-                if (entry.is_regular_file() && entry.path().extension().string() == ".jpg"
-                        && std::find(broken_files.begin(), broken_files.end(), entry.path().string()) == broken_files.end()) //file is not listed in broken_files
+                if (entry.is_regular_file() && entry.path().extension().string() == ".jpg") 
                 {
                     files.push_back(entry.path().string());
 #ifdef DEBUG
