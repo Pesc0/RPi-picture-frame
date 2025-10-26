@@ -1,50 +1,23 @@
 # RPi-picture-frame
 An immich-connected slideshow running on the RPi 1B 256M
+Made of the following modules:
 
-```
-apt install cmake make gcc g++
-```
+## proxy
+Gets images from immich, scales them, adds date and place in the bottom left corner of the image with a light vignette to make the text readable.
+Exposes an API to retrieve the processed images. 
+This is done because the raspberry is too slow for image processing, so this part of the code can run on the server hosting immich.
 
-# Using Broadcom drivers
-```
-git clone https://github.com/raspberrypi/userland
-cd userland
-./buildme
-```
+## Downloader
+Runs on the RPi, periodically gets the image list from the proxy and syncs them on the raspberry local file system.
+In the final design the SD card is made read only by an overlayfs and the image storage is put on an external usb drive, so that it can die without losing the whole setup.
 
-edit `/boot/config.txt`
-```
-gpu_mem_256=72
-#dtoverlay=vc4-kms-v3d
-```
+## Slideshow
+Monitors a folder for jpeg files, shows them in order with a fade in between. 
+It is possible to navigate images using keyboard arrows, and to stop auto advance by pressing space.
+In the final design buttons on the GPIOs are mapped to the keyboard inputs.
 
-export LD_LIBRARY_PATH=/opt/vc/lib:$LD_LIBRARY_PATH
+---
 
-# Using KMSDRM
-https://www.downtowndougbrown.com/2024/06/playing-1080p-h-264-video-on-my-old-256-mb-raspberry-pi/
-
-```
-cp /boot/firmware/overlays/vc4-kms-v3d.dtbo /boot/firmware/overlays/vc4-kms-v3d-256mb.dtbo
-```
-
-edit `/boot/config.txt`
-```
-gpu_mem_256=16
-dtoverlay=vc4-kms-v3d-256mb,cma-96
-```
+Instructions for every module are in the respective folders README.
 
 
-rm /etc/modprobe.d/dietpi-disable_vcsm.conf
-rm /etc/modprobe.d/dietpi-disable_rpi_codec.conf
-rm /etc/modprobe.d/dietpi-disable_rpi_camera.conf
-
-
-```
-git clone https://github.com/Pesc0/RPi-picture-frame --recurse-submodules
-cd RPi-picture-frame/slideshow
-#git submodule foreach git pull origin HEAD
-mkdir build && cd build
-cmake ..
-cmake --build . -j4
-./slideshow
-```

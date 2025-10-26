@@ -16,7 +16,7 @@ headers = {
 
 def resize_to_1080p(image: Image.Image, target_size: (int, int)) -> Image.Image:
     """
-    Resize an image to 1920x1080 while preserving aspect ratio
+    Resize an image while preserving aspect ratio
     and adding black bars as needed.
     """
     
