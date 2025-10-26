@@ -8,9 +8,11 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 from io import BytesIO
 
-from constants import headers, api_endpoint, album_id, data_path_outside_docker
+from constants import api_key, api_endpoint, album_id, data_path_outside_docker
 
-
+headers = {
+    "x-api-key": api_key
+}
 
 def resize_to_1080p(image: Image.Image, target_size: (int, int)) -> Image.Image:
     """
