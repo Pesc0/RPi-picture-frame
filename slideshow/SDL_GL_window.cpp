@@ -1,7 +1,9 @@
 #include "SDL_GL_window.h"
 
 #include <cstdlib> //exit()
-
+#include <vector>
+#include <string>
+#include <filesystem>
 
 GLuint compile_shader(GLenum type, const char* src) {
     GLuint shader = glCreateShader(type);
@@ -96,6 +98,40 @@ GLuint create_texture(int w, int h) {
 
 
 SDL_GL_window::SDL_GL_window() {
+    {
+        const std::string folderPath = "/dev/input";
+        std::ostringstream oss;
+        bool first = true;
+        namespace fs = std::filesystem;
+
+        try {
+            if (fs::exists(folderPath) && fs::is_directory(folderPath)) {
+                for (const auto& entry : fs::directory_iterator(folderPath)) {
+                    const std::string pathStr = entry.path().string();
+                    if (entry.is_character_file() && pathStr.find("event") != std::string::npos) {
+                        if (!first) oss << ",";
+                        oss << ":" << pathStr;
+                        first = false;
+#ifdef DEBUG
+                        SDL_Log("Found input device: %s", pathStr.c_str());
+#endif
+                    }
+                }
+            } 
+        } catch (const fs::filesystem_error& e) {
+            SDL_Log("Filesystem error: %s", e.what());
+            exit(1);
+        }
+        
+#ifdef DEBUG
+        if (first) {
+            SDL_Log("No input devices found in %s", folderPath.c_str());
+        }
+#endif
+
+        setenv("SDL_EVDEV_DEVICES", oss.str().c_str(), 1);
+    }
+
     // [If using SDL_MAIN_USE_CALLBACKS: all code below until the main loop starts would likely be your SDL_AppInit() function]
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
