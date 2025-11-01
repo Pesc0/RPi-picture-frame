@@ -197,18 +197,6 @@ void SDL_GL_window::render(float fade_amount) {
     SDL_GL_SwapWindow(window);
 }
 
-bool SDL_GL_window::wants_to_close() {
-    SDL_Event event;
-    while (SDL_PollEvent(&event))
-    {
-        switch (event.type)
-        {
-        case SDL_EVENT_QUIT:
-            return true;
-        case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-            if (event.window.windowID == this->ID)
-                return true;
-        }
-    }
-    return false;
+SDL_WindowID SDL_GL_window::get_ID() {
+    return this->ID;
 }

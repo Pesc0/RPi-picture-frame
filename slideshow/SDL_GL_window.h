@@ -10,7 +10,7 @@ public:
     ~SDL_GL_window();
 
     void render(float fade_amount);
-    bool wants_to_close();
+    SDL_WindowID get_ID();
 
 private:
     SDL_Window* window;

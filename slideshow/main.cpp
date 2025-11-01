@@ -142,9 +142,6 @@ int main(int, char**)
 
     if (!init_img_loader()) goto exit_error;
 
-    event_fd = open("/dev/input/event0", O_RDONLY | O_NONBLOCK);
-    if (event_fd < 0) { perror("open"); goto exit_error; }
-
     // first render
     if (!load_file_list(folder_path)) goto exit_error;
     if (!load_image(files[curr_file_idx], GL_TEXTURE0)) goto exit_error; //load initial image on texture zero
@@ -161,34 +158,45 @@ int main(int, char**)
         float ts = (crntTime - prevTime) / 1000000000.0f; //nanoseconds to seconds
         prevTime = crntTime;
 
-        if (my_window.wants_to_close()) done = true;
+        SDL_Event event;
+        while (SDL_PollEvent(&event))
+        {
+            switch (event.type)
+            {
+            case SDL_EVENT_QUIT:
+                done = true;
+                break;
+            case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+                if (event.window.windowID == my_window.get_ID()) {
+                    done = true;
+                }
+                break;            
 
-        struct input_event ev;
-        while (read(event_fd, &ev, sizeof(ev)) > 0) {
-            if (ev.type == EV_KEY && ev.value == 1) {
-                switch (ev.code)
+            case SDL_EVENT_KEY_DOWN:
+                switch (event.key.key)
                 {
-                case 57: //space
+                case SDLK_SPACE:
                     paused = !paused; //FIXME paused indicator
                     break; 
 
-                case 105: //left = prev
+                case SDLK_LEFT:
                     if (curr_state == FADING) break;
                     if(!load_prev_image()) goto exit_error;
                     curr_state_time_spent = img_fade_time_s; //jump directly to next image, don't fade
                     curr_state = FADING;
                     break;
 
-                case 106: //right = next
+                case SDLK_RIGHT:
                     if (curr_state == FADING) break;
                     if(!load_next_image()) goto exit_error;
                     curr_state_time_spent = img_fade_time_s; //jump directly to next image, don't fade
                     curr_state = FADING;
                     break;
-
                 }
+                break;
             }
         }
+
 
         switch (curr_state)
         {
