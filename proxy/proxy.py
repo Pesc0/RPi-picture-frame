@@ -102,6 +102,7 @@ def read_item(image_uuid: str, w: Union[str, None] = None, h: Union[str, None] =
     image = Image.open(BytesIO(result.content))
 
     #image = Image.open(f"{data_path_outside_docker}{asset["originalPath"]}")
+    #image = ImageOps.exif_transpose(image)
 
     # process image
     resolution = (int(w) if w else 1920, int(h) if h else 1080)

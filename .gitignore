@@ -5,3 +5,4 @@ downloader/constants.py
 downloader/*.jpg
 .vscode
 __pycache__
+dietpi.txt
