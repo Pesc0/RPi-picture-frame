@@ -106,7 +106,9 @@ else()
     target_link_libraries(slideshow PUBLIC GLESv2)
 endif()
 
-target_link_libraries(slideshow PUBLIC SDL3-shared ${CMAKE_DL_LIBS})
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GPIOD REQUIRED IMPORTED_TARGET libgpiod)
+target_link_libraries(slideshow PUBLIC SDL3-shared ${CMAKE_DL_LIBS} PkgConfig::GPIOD)
 set_target_properties(slideshow PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 

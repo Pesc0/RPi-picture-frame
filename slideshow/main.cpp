@@ -176,7 +176,8 @@ int main(int, char**)
                 switch (event.key.key)
                 {
                 case SDLK_SPACE:
-                    paused = !paused; //FIXME paused indicator
+                    paused = !paused; 
+                    my_window.set_led(paused);
                     break; 
 
                 case SDLK_LEFT:

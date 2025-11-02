@@ -98,6 +98,8 @@ GLuint create_texture(int w, int h) {
 
 
 SDL_GL_window::SDL_GL_window() {
+
+    // set SDL_EVDEV_DEVICES env var
     {
         const std::string folderPath = "/dev/input";
         std::ostringstream oss;
@@ -130,6 +132,51 @@ SDL_GL_window::SDL_GL_window() {
 #endif
 
         setenv("SDL_EVDEV_DEVICES", oss.str().c_str(), 1);
+    }
+
+    // configure led output
+    while(true)
+    {
+        have_led = true;
+
+        gpio_chip = gpiod_chip_open(GPIO_CHIP_NAME);
+        if (!gpio_chip) {
+            SDL_Log("Open GPIO chip failed");
+            have_led = false;     
+            break;
+        }
+
+        struct gpiod_chip_info *info = gpiod_chip_get_info(gpio_chip);
+        const char *label = gpiod_chip_info_get_label(info);
+        if (!label || (strstr(label, "bcm") == NULL && strstr(label, "BCM") == NULL)) {
+            SDL_Log("Error: GPIO chip is not Broadcom (found: %s)\n", label ? label : "unknown");
+            gpiod_chip_close(gpio_chip);
+            have_led = false;  
+            break;
+        }
+
+        settings = gpiod_line_settings_new();
+        gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
+
+        line_cfg = gpiod_line_config_new();
+        const unsigned int lines[] = { GPIO_LINE };
+        gpiod_line_config_add_line_settings(line_cfg, lines, 1, settings);
+
+        req_cfg = gpiod_request_config_new();
+        gpiod_request_config_set_consumer(req_cfg, "led-toggle");
+
+        request = gpiod_chip_request_lines(gpio_chip, req_cfg, line_cfg);
+        if (!request) {
+            SDL_Log("Request lines failed");
+            gpiod_request_config_free(req_cfg);
+            gpiod_line_config_free(line_cfg);
+            gpiod_line_settings_free(settings);
+            gpiod_chip_close(gpio_chip);
+            have_led = false;
+            break;   
+        }
+
+        break;
     }
 
     // [If using SDL_MAIN_USE_CALLBACKS: all code below until the main loop starts would likely be your SDL_AppInit() function]
@@ -221,6 +268,14 @@ SDL_GL_window::SDL_GL_window() {
 }
 
 SDL_GL_window::~SDL_GL_window() {
+    if (have_led) {
+        gpiod_line_request_release(request);
+        gpiod_request_config_free(req_cfg);
+        gpiod_line_config_free(line_cfg);
+        gpiod_line_settings_free(settings);
+        gpiod_chip_close(gpio_chip);
+    }
+
     SDL_GL_DestroyContext(gl_context);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -235,4 +290,10 @@ void SDL_GL_window::render(float fade_amount) {
 
 SDL_WindowID SDL_GL_window::get_ID() {
     return this->ID;
+}
+
+void SDL_GL_window::set_led(bool state) {
+    if (have_led) {
+        gpiod_line_request_set_value(request, GPIO_LINE, state ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);    
+    }
 }
