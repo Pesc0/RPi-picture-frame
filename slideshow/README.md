@@ -1,7 +1,16 @@
 
 ```
-apt install cmake make gcc g++ libturbojpeg0-dev libjpeg62-turbo-dev
+apt install cmake make gcc g++ libturbojpeg0-dev libjpeg62-turbo-dev gpiod libgpiod-dev
 ```
+
+edit `/boot/config.txt`
+```
+dtoverlay=gpio-key,gpio=17,active_low=1,gpio_pull=up,label=left,keycode=105
+dtoverlay=gpio-key,gpio=18,active_low=1,gpio_pull=up,label=right,keycode=106
+dtoverlay=gpio-key,gpio=22,active_low=1,gpio_pull=up,label=space,keycode=57
+```
+
+
 
 # Using Broadcom drivers
 ```
@@ -27,7 +36,7 @@ cp /boot/firmware/overlays/vc4-kms-v3d.dtbo /boot/firmware/overlays/vc4-kms-v3d-
 
 edit `/boot/config.txt`
 ```
-gpu_mem_256=16
+gpu_mem_256=32
 dtoverlay=vc4-kms-v3d-256mb,cma-96
 ```
 
