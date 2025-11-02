@@ -52,6 +52,8 @@ cmake --build . -j2
 Dont forget to edit .env appropriately if using systemd file. Default image location is /tmp
 
 # GPIO mappings
+https://discourse.osmc.tv/t/how-to-use-harware-buttons-on-raspberry-pi-zero-with-gpio-key/86594
+https://blog.geggus.net/2017/01/setting-up-a-gpio-button-keyboard-on-a-raspberry-pi/
 
 > /boot/config.txt
 > ```
