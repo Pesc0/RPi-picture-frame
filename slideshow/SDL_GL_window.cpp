@@ -131,7 +131,7 @@ SDL_GL_window::SDL_GL_window() {
         }
 #endif
 
-        setenv("SDL_EVDEV_DEVICES", oss.str().c_str(), 1);
+        SDL_SetHint(SDL_HINT_EVDEV_DEVICES, oss.str().c_str());
     }
 
     // configure led output
@@ -270,6 +270,7 @@ SDL_GL_window::SDL_GL_window() {
 
 SDL_GL_window::~SDL_GL_window() {
     if (have_led) {
+        set_led(false);
         gpiod_line_request_release(request);
         gpiod_request_config_free(req_cfg);
         gpiod_line_config_free(line_cfg);

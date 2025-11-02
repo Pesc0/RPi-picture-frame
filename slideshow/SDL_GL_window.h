@@ -5,7 +5,7 @@
 #include <gpiod.h>
 
 #define GPIO_CHIP_NAME "/dev/gpiochip0"
-#define GPIO_LINE 21  // GPIO21
+#define GPIO_LINE 23  // GPIO23
 
 
 class SDL_GL_window {
