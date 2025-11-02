@@ -149,7 +149,7 @@ SDL_GL_window::SDL_GL_window() {
         struct gpiod_chip_info *info = gpiod_chip_get_info(gpio_chip);
         const char *label = gpiod_chip_info_get_label(info);
         if (!label || (strstr(label, "bcm") == NULL && strstr(label, "BCM") == NULL)) {
-            SDL_Log("Error: GPIO chip is not Broadcom (found: %s)\n", label ? label : "unknown");
+            SDL_Log("Skipping GPIO chip: not Broadcom (found: %s)\n", label ? label : "unknown");
             gpiod_chip_close(gpio_chip);
             have_led = false;  
             break;
@@ -159,7 +159,8 @@ SDL_GL_window::SDL_GL_window() {
         gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
 
         line_cfg = gpiod_line_config_new();
-        const unsigned int lines[] = { GPIO_LINE };
+        const char* env_led = getenv("LED_PAUSE_INDICATOR_GPIO");
+        const unsigned int lines[] = { env_led != nullptr ? (unsigned int)std::stoul(env_led) : GPIO_LINE };
         gpiod_line_config_add_line_settings(line_cfg, lines, 1, settings);
 
         req_cfg = gpiod_request_config_new();
@@ -167,7 +168,7 @@ SDL_GL_window::SDL_GL_window() {
 
         request = gpiod_chip_request_lines(gpio_chip, req_cfg, line_cfg);
         if (!request) {
-            SDL_Log("Request lines failed");
+            SDL_Log("GPIO request lines failed");
             gpiod_request_config_free(req_cfg);
             gpiod_line_config_free(line_cfg);
             gpiod_line_settings_free(settings);
