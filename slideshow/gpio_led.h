@@ -2,18 +2,16 @@
 
 #include <gpiod.h>
 
-#define GPIO_CHIP_NAME "/dev/gpiochip0"
-#define GPIO_LINE 23  // GPIO23
-
 
 class GPIOLED {
 public:
-    GPIOLED();
+    GPIOLED(unsigned int gpio_pin);
     ~GPIOLED();
 
     void set_led(bool state);
 
 private:
+    const unsigned int gpio_line;
     bool have_led;
     struct gpiod_chip *gpio_chip;
     struct gpiod_line_settings *settings;

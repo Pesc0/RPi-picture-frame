@@ -1,10 +1,12 @@
 #include "gpio_led.h"
 
 #include <SDL3/SDL.h>
-#include <string>
 
 
-GPIOLED::GPIOLED() {
+#define GPIO_CHIP_NAME "/dev/gpiochip0"
+
+
+GPIOLED::GPIOLED(unsigned int gpio_pin) : gpio_line(gpio_pin) {
 
     have_led = true;
 
@@ -28,8 +30,7 @@ GPIOLED::GPIOLED() {
     gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
 
     line_cfg = gpiod_line_config_new();
-    const char* env_led = getenv("LED_PAUSE_INDICATOR_GPIO");
-    const unsigned int lines[] = { env_led != nullptr ? (unsigned int)std::stoul(env_led) : GPIO_LINE };
+    const unsigned int lines[] = { gpio_line };
     gpiod_line_config_add_line_settings(line_cfg, lines, 1, settings);
 
     req_cfg = gpiod_request_config_new();
@@ -62,6 +63,6 @@ GPIOLED::~GPIOLED() {
 
 void GPIOLED::set_led(bool state) {
     if (have_led) {
-        gpiod_line_request_set_value(request, GPIO_LINE, state ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);    
+        gpiod_line_request_set_value(request, gpio_line, state ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);    
     }
 }

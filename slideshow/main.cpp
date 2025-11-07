@@ -5,8 +5,6 @@
 
 #include <math.h>
 #include <string>
-#include <fcntl.h>
-#include <unistd.h>
 #include <csignal>
 #include <atomic>
 
@@ -14,6 +12,7 @@
 #define DEFAULT_IMG_DISPLAY_TIME 60.0f 
 #define DEFAULT_IMG_FADE_TIME 0.5f
 #define DEFAULT_IMG_FOLDER_PATH "/tmp"
+#define DEFAULT_GPIO_LINE 23  // GPIO23
 
 std::atomic<bool> stop_requested(false);
 
@@ -42,7 +41,10 @@ int main(int, char**)
     const char* env_folder_path = getenv("IMG_FOLDER_PATH");
     const std::string folder_path = env_folder_path != nullptr ? env_folder_path : DEFAULT_IMG_FOLDER_PATH;
 
-    GPIOLED my_led;
+    const char* env_led = getenv("LED_PAUSE_INDICATOR_GPIO");
+    unsigned int led_pin = env_led != nullptr ? (unsigned int)std::stoul(env_led) : DEFAULT_GPIO_LINE;
+
+    GPIOLED my_led(led_pin);
     SDL_GL_window my_window;
     ImageLoader my_loader(folder_path);
     if (!my_loader.init_is_successful()) return 1;
