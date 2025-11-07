@@ -88,16 +88,16 @@ int main(int, char**)
 
                 case SDLK_LEFT:
                     if (curr_state == FADING) break;
-                    if (!my_loader.new_image_has_been_loaded()) { //maybe the next image has already been loaded automatically. skip load.
-                        if(!my_loader.load_prev_image()) return 1;
-                    }
+                    if(!my_loader.load_prev_image()) return 1;
                     curr_state_time_spent = img_fade_time_s; //jump directly to next image, don't fade
                     curr_state = FADING;
                     break;
 
                 case SDLK_RIGHT:
                     if (curr_state == FADING) break;
-                    if(!my_loader.load_next_image()) return 1;
+                    if (!my_loader.new_image_has_been_loaded()) { //maybe the next image has already been loaded automatically. skip load.
+                        if(!my_loader.load_next_image()) return 1;
+                    }
                     curr_state_time_spent = img_fade_time_s; //jump directly to next image, don't fade
                     curr_state = FADING;
                     break;
