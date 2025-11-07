@@ -1,16 +1,19 @@
 #include "load_image.h"
 
 #include <fstream>
-#include <string>
-#include <vector>
-#include <SDL3/SDL.h>
+#include <filesystem>
+#include <algorithm>
 #include <cstddef>
 
-//#include <algorithm>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_opengles2.h>
 
 
+
+bool _init_img_loader();
 bool _load_image(unsigned char *&pixeldata_out, size_t &pixeldata_len_out, const std::vector<unsigned char> &filebuf_in, const std::string &path_in, int &width, int &height);
 void _free_pixeldata(unsigned char *pixeldata, size_t pixeldata_len);
+void _loader_cleanup();
 
 #ifdef USE_STB_IMAGE
     #include <loader_stb.cpp>
@@ -105,4 +108,101 @@ bool load_image(const std::string& path, GLenum texture_unit) {
     }
 
     return true;
+}
+
+
+
+ImageLoader::ImageLoader(const std::string& path) : folder_path(path) { 
+    init_success = true;
+
+    if (!_init_img_loader()) { init_success = false; return; }
+    if (!load_file_list()) { init_success = false; return; }
+    if (!load_image(img_files[0], GL_TEXTURE0)) { init_success = false; return; }
+}
+
+ImageLoader::~ImageLoader() { _loader_cleanup(); }
+
+
+bool ImageLoader::load_file_list() {
+    namespace fs = std::filesystem;
+    std::vector<std::string> imgs_found;
+    try {
+        if (fs::exists(folder_path) && fs::is_directory(folder_path)) {
+            for (const auto& entry : fs::directory_iterator(folder_path)) {
+                //jpgs load in 1.4-1.6 seconds, pngs in 1.0-1.2 seconds but take much more space in filesystem
+                if (entry.is_regular_file() && entry.path().extension().string() == ".jpg") 
+                {
+                    imgs_found.push_back(entry.path().string());
+#ifdef DEBUG
+                    SDL_Log("found: %s", entry.path().string().c_str());
+#endif
+                }
+            }
+        }
+    } catch (const fs::filesystem_error& e) {
+        SDL_Log("Filesystem error: %s", e.what());
+        return false;
+    }
+
+    if (imgs_found.empty()) {
+        SDL_Log("No files found in %s", folder_path.c_str());
+        return false;
+    }
+
+    img_files = imgs_found;
+    //NOTE: back_texture_file_idx is now in an invalid state. but since it is read only at FADE_DONE, and 
+    // FADE_DONE also invalidates new_image_loaded_since_fade, a new back_texture_file_idx will get assigned anyway.
+    return true;
+}
+
+
+int ImageLoader::get_file_idx(const std::string &path) {
+    auto pos = std::find(img_files.begin(), img_files.end(), path);
+    return pos != img_files.end() ? std::distance(img_files.begin(), pos) : 0;
+}
+
+
+bool ImageLoader::load_image_to_back_texture(int file_idx) {
+    std::string path = img_files[file_idx];
+
+    bool success = load_image(path, current_active_texture == 1 ? GL_TEXTURE0 : GL_TEXTURE1);
+    if (success) {
+        tex_loaded_filenames[!current_active_texture] = path;
+        new_image_loaded = true;
+    }
+    return success;
+}
+
+
+bool ImageLoader::load_next_image() { //search forwards until an image can be loaded
+    int curr_file_idx = get_file_idx(tex_loaded_filenames[current_active_texture]);
+
+    bool success = false;
+    int attempts = 0;
+    while (!success && attempts < img_files.size()) {
+        success = load_image_to_back_texture((curr_file_idx+1+attempts)%img_files.size());
+        attempts++;
+    }
+    
+    return success;
+}
+
+
+bool ImageLoader::load_prev_image() { //search backwards until an image can be loaded
+    int curr_file_idx = get_file_idx(tex_loaded_filenames[current_active_texture]);
+
+    bool success = false;
+    int attempts = 0;
+    while (!success && attempts < img_files.size()) {
+        success = load_image_to_back_texture((curr_file_idx+img_files.size()-1-attempts)%img_files.size());
+        attempts++;
+    }
+    
+    return success;
+}
+
+
+void ImageLoader::switch_active_texture() {
+    current_active_texture = !current_active_texture;
+    new_image_loaded = false;
 }

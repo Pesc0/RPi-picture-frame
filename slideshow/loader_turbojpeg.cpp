@@ -9,11 +9,11 @@
 
 #define LOADER_GL_PIXEL_FORMAT GL_RGB
 
-static tjhandle g_tj = nullptr;
+static tjhandle g_tj;
 
 
-bool init_img_loader() {
-    if (!g_tj) g_tj = tjInitDecompress();
+bool _init_img_loader() {
+    g_tj = tjInitDecompress();
     return true;
 }
 
@@ -48,4 +48,4 @@ void _free_pixeldata(unsigned char *pixeldata, size_t pixeldata_len) {
         free(pixeldata);
 }
 
-void loader_cleanup() {}
+void _loader_cleanup() {}

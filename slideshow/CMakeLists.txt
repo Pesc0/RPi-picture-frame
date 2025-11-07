@@ -91,6 +91,7 @@ target_sources(slideshow PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/SDL_GL_window.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/load_image.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/gpio_led.cpp
 )
 target_include_directories(slideshow PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

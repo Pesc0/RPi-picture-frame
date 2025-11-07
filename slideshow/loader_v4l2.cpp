@@ -62,7 +62,7 @@ static std::vector<Buffer_CAP> v4l2_cap_mmap;     // decoded output (CAPTURE) bu
 //    #define V4L2_PIX_FMT_JPEG v4l2_fourcc('J','P','E','G')
 //#endif
 
-bool init_img_loader() {
+bool _init_img_loader() {
 
     v4l2_fd = open("/dev/video10", O_RDWR | O_CLOEXEC);
     if (v4l2_fd < 0) {
@@ -493,7 +493,7 @@ $ dmesg | grep -i video
 [  258.802694] bcm2835-codec bcm2835-codec: bcm2835_codec_create_component: failed to create component ril.video_decode
 */
 
-void loader_cleanup() {
+void _loader_cleanup() {
 
     int buf_idx = 0;
     while(buf_idx < v4l2_out_mmap.size()) {

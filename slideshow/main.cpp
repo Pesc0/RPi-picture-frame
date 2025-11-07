@@ -1,129 +1,38 @@
 
 #include "SDL_GL_window.h"
 #include "load_image.h"
+#include "gpio_led.h"
 
 #include <math.h>
-#include <vector>
 #include <string>
-#include <filesystem>
-#include <algorithm>
-#include <linux/input.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-
+#include <csignal>
+#include <atomic>
 
 
 #define DEFAULT_IMG_DISPLAY_TIME 60.0f 
 #define DEFAULT_IMG_FADE_TIME 0.5f
 #define DEFAULT_IMG_FOLDER_PATH "/tmp"
 
+std::atomic<bool> stop_requested(false);
 
-/* GLOBALS */
-std::vector<std::string> files;
-int curr_file_idx = 0;
-int back_texture_file_idx; 
-bool new_image_loaded_since_fade = false;
-
-bool current_active_texture = 0; 
-
-enum State { DISPLAY, FADING };
-State curr_state = DISPLAY;
-float curr_state_time_spent = 0.0f;
-bool paused = false;
-
-
-
-
-bool load_file_list(const std::string& folderPath) {
-    namespace fs = std::filesystem;
-    std::string curr_file = files.empty() ? "" : files[curr_file_idx];
-    files.clear();
-    try {
-        if (fs::exists(folderPath) && fs::is_directory(folderPath)) {
-            for (const auto& entry : fs::directory_iterator(folderPath)) {
-                //jpgs load in 1.4-1.6 seconds, pngs in 1.0-1.2 seconds but take much more space in filesystem
-                if (entry.is_regular_file() && entry.path().extension().string() == ".jpg") 
-                {
-                    files.push_back(entry.path().string());
-#ifdef DEBUG
-                    SDL_Log("found: %s", entry.path().string().c_str());
-#endif
-                }
-            }
-        }
-    } catch (const fs::filesystem_error& e) {
-        SDL_Log("Filesystem error: %s", e.what());
-        return false;
+void signal_handler(int signal) {
+    if (signal == SIGINT) {
+        stop_requested = true;  
     }
-
-    if (files.empty()) {
-        SDL_Log("No files found in %s", folderPath.c_str());
-        return false;
-    }
-
-    auto pos = std::find(files.begin(), files.end(), curr_file);
-    if (pos != files.end()) {
-        curr_file_idx = std::distance(files.begin(), pos);
-    }
-    else {
-        curr_file_idx = 0;
-    }
-
-#ifdef DEBUG
-    SDL_Log("idx: %d", curr_file_idx);
-#endif
-
-    //NOTE: back_texture_file_idx is now in an invalid state. but since it is read only at FADE_DONE, and 
-    // FADE_DONE also invalidates new_image_loaded_since_fade, a new back_texture_file_idx will get assigned anyway.
-    return true;
 }
-
-
-
-bool load_image_to_back_texture(int file_idx) {
-    back_texture_file_idx = file_idx;
-    std::string path = files[back_texture_file_idx];
-    if (current_active_texture) //texture1 is on screen
-        return load_image(path, GL_TEXTURE0);
-    else
-        return load_image(path, GL_TEXTURE1);
-}
-
-bool load_next_image() { //search forwards until an image can be loaded
-    //next image may have already been loaded, thus we can exit early. 
-    //does not apply to prev image, since that is done only on command and shown immediately.
-    //we can safely return success, since failure of finding a next image means program exit. 
-    //so if the program is still running and has already new_image_loaded_since_fade it means it has been found.
-    if (new_image_loaded_since_fade) return true; 
-
-    bool success = false;
-    int attempts = 0;
-    while (!success && attempts < files.size()) {
-        success = load_image_to_back_texture((curr_file_idx+1+attempts)%files.size());
-        attempts++;
-    }
-    
-    new_image_loaded_since_fade = success;
-    return success;
-}
-
-bool load_prev_image() { //search backwards until an image can be loaded
-    bool success = false;
-    int attempts = 0;
-    while (!success && attempts < files.size()) {
-        success = load_image_to_back_texture((curr_file_idx+files.size()-1-attempts)%files.size());
-        attempts++;
-    }
-    
-    new_image_loaded_since_fade = success;
-    return success;
-}
-
 
 
 int main(int, char**)
 {
+    enum State { DISPLAY, FADING };
+    State curr_state = DISPLAY;
+    float curr_state_time_spent = 0.0f;
+    bool paused = false;
+
+    std::signal(SIGINT, signal_handler);
+
     const char* env_img_display_time = getenv("IMG_DISPLAY_TIME");
     const float img_display_time_s = env_img_display_time != nullptr ? std::stof(env_img_display_time) : DEFAULT_IMG_DISPLAY_TIME;
 
@@ -133,26 +42,21 @@ int main(int, char**)
     const char* env_folder_path = getenv("IMG_FOLDER_PATH");
     const std::string folder_path = env_folder_path != nullptr ? env_folder_path : DEFAULT_IMG_FOLDER_PATH;
 
+    GPIOLED my_led;
     SDL_GL_window my_window;
+    ImageLoader my_loader(folder_path);
+    if (!my_loader.init_is_successful()) return 1;
 
-    //declared here to allow goto
-    int event_fd;
-    Uint64 prevTime;
-    bool done;
 
-    if (!init_img_loader()) goto exit_error;
-
-    // first render
-    if (!load_file_list(folder_path)) goto exit_error;
-    if (!load_image(files[curr_file_idx], GL_TEXTURE0)) goto exit_error; //load initial image on texture zero
+    // first render, twice because of a bug on some opengl implementations where 
+    // one render would show a black screen, but it would fix itself with a second one.
     my_window.render(0.0f);
     my_window.render(0.0f);
-    prevTime = SDL_GetPerformanceCounter(); 
+
+    Uint64 prevTime = SDL_GetPerformanceCounter(); 
     SDL_Delay(100);
 
-    // Main loop
-    done = false;
-    while (!done)
+    while (!stop_requested) // Main loop
     {
         Uint64 crntTime = SDL_GetPerformanceCounter();
         float ts = (crntTime - prevTime) / 1000000000.0f; //nanoseconds to seconds
@@ -164,11 +68,11 @@ int main(int, char**)
             switch (event.type)
             {
             case SDL_EVENT_QUIT:
-                done = true;
+                return 0;
                 break;
             case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
                 if (event.window.windowID == my_window.get_ID()) {
-                    done = true;
+                    return 0;
                 }
                 break;            
 
@@ -177,19 +81,21 @@ int main(int, char**)
                 {
                 case SDLK_SPACE:
                     paused = !paused; 
-                    my_window.set_led(paused);
+                    my_led.set_led(paused);
                     break; 
 
                 case SDLK_LEFT:
                     if (curr_state == FADING) break;
-                    if(!load_prev_image()) goto exit_error;
+                    if (!my_loader.new_image_has_been_loaded()) { //maybe the next image has already been loaded automatically. skip load.
+                        if(!my_loader.load_prev_image()) return 1;
+                    }
                     curr_state_time_spent = img_fade_time_s; //jump directly to next image, don't fade
                     curr_state = FADING;
                     break;
 
                 case SDLK_RIGHT:
                     if (curr_state == FADING) break;
-                    if(!load_next_image()) goto exit_error;
+                    if(!my_loader.load_next_image()) return 1;
                     curr_state_time_spent = img_fade_time_s; //jump directly to next image, don't fade
                     curr_state = FADING;
                     break;
@@ -209,8 +115,8 @@ int main(int, char**)
                     curr_state = FADING;
                     break;
                 }
-                else if (!new_image_loaded_since_fade && curr_state_time_spent > img_display_time_s / 2) {
-                    if(!load_next_image()) goto exit_error;
+                else if (!my_loader.new_image_has_been_loaded() && curr_state_time_spent > img_display_time_s / 2) {
+                    if(!my_loader.load_next_image()) return 1;
                 }
             }
             SDL_Delay(100); //slow down but allow polling for events every 100ms
@@ -224,15 +130,13 @@ int main(int, char**)
                 image_fade_value = 1.0f;
                 done_fading = true;
             }
-            my_window.render(current_active_texture ? (1 - image_fade_value) : image_fade_value); 
-
+            my_window.render(my_loader.correct_fade_direction(image_fade_value));
+            
             if (done_fading) {
-                current_active_texture = !current_active_texture;
-                curr_file_idx = back_texture_file_idx;
-                new_image_loaded_since_fade = false;
+                my_loader.switch_active_texture();
+                if (!my_loader.load_file_list()) return 1;
                 curr_state_time_spent = 0;
                 curr_state = DISPLAY;
-                if (!load_file_list(folder_path)) goto exit_error;
             }
             break;
         }
@@ -241,10 +145,5 @@ int main(int, char**)
 #endif
     }
 
-    loader_cleanup(); 
     return 0;
-
-exit_error:
-    loader_cleanup(); 
-    return 1;
 }

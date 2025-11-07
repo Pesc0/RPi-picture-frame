@@ -7,7 +7,7 @@
 #define LOADER_GL_PIXEL_FORMAT GL_RGB
 
 
-bool init_img_loader() {
+bool _init_img_loader() {
     stbi_set_flip_vertically_on_load(1);
     return true;
 }
@@ -29,4 +29,4 @@ void _free_pixeldata(unsigned char *pixeldata, size_t pixeldata_len) {
         stbi_image_free(pixeldata);
 }
 
-void loader_cleanup() {}
+void _loader_cleanup() {}

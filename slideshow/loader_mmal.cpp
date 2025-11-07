@@ -50,7 +50,7 @@ static void control_callback(MMAL_PORT_T* port, MMAL_BUFFER_HEADER_T* buffer) {
 }
 
 
-bool init_img_loader() {
+bool _init_img_loader() {
     bcm_host_init();
     vcos_semaphore_create(&semaphore, "imgloader", 1);
 
@@ -199,4 +199,4 @@ void _free_pixeldata(unsigned char *pixeldata, size_t pixeldata_len) {
     mmal_buffer_header_release(pixeldata);
 }
 
-void loader_cleanup() {}
+void _loader_cleanup() {}
