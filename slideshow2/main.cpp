@@ -55,12 +55,7 @@ int main(int, char**)
     DRM drm;
 	GBM gbm(drm);
 	EGL egl(gbm);
-
-#ifdef DEBUG
-    printf("Detected resolution: %dx%d", gbm.width, gbm.height);
-#endif
-
-    gl_init(gbm.width, gbm.height);
+    GL gl(drm, gbm, egl);
 
     ImageLoader my_loader(folder_path);
     if (!my_loader.init_is_successful()) return 1;
@@ -74,31 +69,12 @@ int main(int, char**)
     auto prevTime = my_clock::now();    
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    struct gbm_bo *bo = NULL;
-	uint32_t flags = DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_ATOMIC_ALLOW_MODESET;
-
     while (!stop_requested) // Main loop
     {
         auto crntTime = my_clock::now();        
         std::chrono::duration<float> delta = crntTime - prevTime;
         float ts = delta.count();
         prevTime = crntTime;
-
-		EGLSyncKHR kms_fence = NULL;   /* in-fence to gpu, out-fence from kms */
-        if (drm.kms_out_fence_fd != -1) {
-			kms_fence = egl.create_fence(drm.kms_out_fence_fd);
-
-			/* driver now has ownership of the fence fd: */
-			drm.kms_out_fence_fd = -1;
-
-			/* wait "on the gpu" (ie. this won't necessarily block, but
-			 * will block the rendering until fence is signaled), until
-			 * the previous pageflip completes so we don't render into
-			 * the buffer that is still on screen.
-			 */
-			egl.eglWaitSyncKHR(egl.display, kms_fence, 0);
-		}
-
 
         switch (curr_state)
         {
@@ -127,7 +103,7 @@ int main(int, char**)
                 done_fading = true;
             }
 
-            gl_render(my_loader.correct_fade_direction(image_fade_value));
+            gl.gl_render(my_loader.correct_fade_direction(image_fade_value));
 
             if (done_fading) {
                 my_loader.switch_active_texture();
@@ -141,68 +117,7 @@ int main(int, char**)
 	    printf("%f FPS", 1.0f/ts);
 #endif
 
-		/* insert fence to be singled in cmdstream.. this fence will be
-		 * signaled when gpu rendering done.
-         * out-fence from gpu, in-fence to kms */
-		EGLSyncKHR gpu_fence = egl.create_fence(EGL_NO_NATIVE_FENCE_FD_ANDROID);
-        
-        eglSwapBuffers(egl.display, egl.surface);
 
-		/* after swapbuffers, gpu_fence should be flushed, so safe
-		 * to get fd:
-		 */
-
-		drm.kms_in_fence_fd = egl.eglDupNativeFenceFDANDROID(egl.display, gpu_fence);
-		egl.eglDestroySyncKHR(egl.display, gpu_fence);
-		assert(drm.kms_in_fence_fd != -1);
-
-		struct gbm_bo *next_bo = gbm_surface_lock_front_buffer(gbm.surface);
-		if (!next_bo) {
-			printf("Failed to lock frontbuffer\n");
-			return -1;
-		}
-
-	    struct drm_fb *fb = drm_fb_get_from_bo(next_bo);
-		if (!fb) {
-			printf("Failed to get a new framebuffer BO\n");
-			return -1;
-		}
-
-		if (kms_fence) {
-			EGLint status;
-
-			/* Wait on the CPU side for the _previous_ commit to
-			 * complete before we post the flip through KMS, as
-			 * atomic will reject the commit if we post a new one
-			 * whilst the previous one is still pending.
-			 */
-			do {
-				status = egl.eglClientWaitSyncKHR(egl.display,
-								   kms_fence,
-								   0,
-								   EGL_FOREVER_KHR);
-			} while (status != EGL_CONDITION_SATISFIED_KHR);
-
-			egl.eglDestroySyncKHR(egl.display, kms_fence);
-		}
-
-
-		/*
-		 * Here you could also update drm plane layers if you want
-		 * hw composition
-		 */
-		if (drm.drm_atomic_commit(fb->fb_id, flags)) {
-			printf("failed to commit: %s\n", strerror(errno));
-			return -1;
-		}
-
-		/* release last buffer to render on again: */
-		if (bo && gbm.surface)
-			gbm_surface_release_buffer(gbm.surface, bo);
-		bo = next_bo;
-
-		/* Allow a modeset change for the first commit only. */
-		flags &= ~(DRM_MODE_ATOMIC_ALLOW_MODESET);
     }
 
     return 0;

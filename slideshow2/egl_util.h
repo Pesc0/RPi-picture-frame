@@ -4,7 +4,6 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
 
 
 class GBM;
@@ -20,7 +19,6 @@ class EGL {
 public:
 	EGL(const GBM &gbm);
 	EGLSyncKHR create_fence(int fd);
-	bool create_framebuffer(const struct egl *egl, struct gbm_bo *bo, struct framebuffer *fb);
 
 public:
 	EGLDisplay display;
@@ -31,7 +29,6 @@ public:
 	PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayEXT;
 	PFNEGLCREATEIMAGEKHRPROC eglCreateImageKHR;
 	PFNEGLDESTROYIMAGEKHRPROC eglDestroyImageKHR;
-	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC glEGLImageTargetTexture2DOES;
 	PFNEGLCREATESYNCKHRPROC eglCreateSyncKHR;
 	PFNEGLDESTROYSYNCKHRPROC eglDestroySyncKHR;
 	PFNEGLWAITSYNCKHRPROC eglWaitSyncKHR;
