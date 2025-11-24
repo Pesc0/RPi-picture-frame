@@ -1,4 +1,5 @@
 slideshow/build
+slideshow2/build
 proxy/constants.py
 proxy/Ubuntu-R.ttf
 downloader/constants.py
@@ -6,3 +7,5 @@ downloader/*.jpg
 .vscode
 __pycache__
 dietpi.txt
+todo.txt
+kmscube-master
