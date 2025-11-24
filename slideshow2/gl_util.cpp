@@ -141,7 +141,7 @@ GL::GL(DRM &drm, GBM &gbm, EGL &egl) : drm_ref(drm), gbm_ref(gbm), egl_ref(egl) 
 }
 
 
-void GL::gl_render(float fade_amount) {
+void GL::render(float fade_amount) {
 	EGLSyncKHR kms_fence = NULL;   /* in-fence to gpu, out-fence from kms */
     if (drm_ref.kms_out_fence_fd != -1) {
 		kms_fence = egl_ref.create_fence(drm_ref.kms_out_fence_fd);

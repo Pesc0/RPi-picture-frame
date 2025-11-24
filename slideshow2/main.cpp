@@ -60,11 +60,7 @@ int main(int, char**)
     ImageLoader my_loader(folder_path);
     if (!my_loader.init_is_successful()) return 1;
 
-    //FIXME
-    // first render, twice because of a bug on some opengl implementations where 
-    // one render would show a black screen, but it would fix itself with a second one.
-    //my_window.render(0.0f);
-    //my_window.render(0.0f);
+    gl.render(0.0f);
 
     auto prevTime = my_clock::now();    
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -103,7 +99,7 @@ int main(int, char**)
                 done_fading = true;
             }
 
-            gl.gl_render(my_loader.correct_fade_direction(image_fade_value));
+            gl.render(my_loader.correct_fade_direction(image_fade_value));
 
             if (done_fading) {
                 my_loader.switch_active_texture();
@@ -116,8 +112,6 @@ int main(int, char**)
 #ifdef DEBUG_RENDER
 	    printf("%f FPS", 1.0f/ts);
 #endif
-
-
     }
 
     return 0;

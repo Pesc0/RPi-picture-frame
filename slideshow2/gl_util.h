@@ -9,7 +9,7 @@ class EGL;
 class GL {
 public:
     GL(DRM &drm, GBM &gbm, EGL &egl);
-    void gl_render(float fade_amount);
+    void render(float fade_amount);
 
 private:
     DRM &drm_ref;
