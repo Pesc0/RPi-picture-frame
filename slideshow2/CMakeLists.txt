@@ -26,7 +26,8 @@ if(USE_TURBO_JPEG)
     pkg_check_modules(JPEG_TURBO REQUIRED libturbojpeg)
 endif()
 
-find_library(LIBDRM_LIB drm)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBDRM REQUIRED libdrm)
 find_library(GBM_LIB gbm)
 find_library(EGL_LIB EGL)
 find_library(GLES2_LIB GLESv2)
@@ -35,12 +36,14 @@ add_executable(slideshow)
 target_sources(slideshow PUBLIC 
             ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/load_image.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/drm.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/gl_util.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/drm_util.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/gbm_util.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/egl_util.cpp
 )
-target_include_directories(slideshow PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(slideshow PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${LIBDRM_INCLUDE_DIRS} "/usr/include/libdrm")
 target_link_libraries(slideshow PUBLIC 
-            Threads::Threads     
-            ${LIBDRM_LIB}
+            ${LIBDRM_LIBRARIES}
             ${GBM_LIB}
             ${EGL_LIB}
             ${GLES2_LIB}
