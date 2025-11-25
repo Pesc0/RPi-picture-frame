@@ -9,6 +9,7 @@
 #include <cassert>
 #include <stdexcept>
 #include <cstring>   // for strerror
+#include <format>
 
 
 static GLint uFade;
@@ -145,15 +146,12 @@ void GL::render(float fade_amount) {
 	EGLSyncKHR kms_fence = NULL;   /* in-fence to gpu, out-fence from kms */
     if (drm_ref.kms_out_fence_fd != -1) {
 		kms_fence = egl_ref.create_fence(drm_ref.kms_out_fence_fd);
+		drm_ref.kms_out_fence_fd = -1; // driver now has ownership of the fence fd
 
-		/* driver now has ownership of the fence fd: */
-		drm_ref.kms_out_fence_fd = -1;
-
-		/* wait "on the gpu" (ie. this won't necessarily block, but
-		 * will block the rendering until fence is signaled), until
-		 * the previous pageflip completes so we don't render into
-		 * the buffer that is still on screen.
-		 */
+		// wait "on the gpu" (ie. this won't necessarily block, but
+		// will block the rendering until fence is signaled), until
+		// the previous pageflip completes so we don't render into
+		// the buffer that is still on screen.
 		egl_ref.eglWaitSyncKHR(egl_ref.display, kms_fence, 0);
 	}
 
@@ -161,62 +159,45 @@ void GL::render(float fade_amount) {
     glClear(GL_COLOR_BUFFER_BIT); //could be omitted, but helps on vc4 apparently (not sure if it applies to brcm as well) https://docs.mesa3d.org/drivers/vc4.html
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-	/* insert fence to be singled in cmdstream.. this fence will be
-	 * signaled when gpu rendering done.
-     * out-fence from gpu, in-fence to kms */
+	// insert fence to be singled in cmdstream. 
+    // this fence will be signaled when gpu rendering done.
+    // out-fence from gpu, in-fence to kms 
 	EGLSyncKHR gpu_fence = egl_ref.create_fence(EGL_NO_NATIVE_FENCE_FD_ANDROID);
         
     eglSwapBuffers(egl_ref.display, egl_ref.surface);
 
-	/* after swapbuffers, gpu_fence should be flushed, so safe
-	 * to get fd:
-	 */
-
+	// after swapbuffers, gpu_fence should be flushed, so safe to get fd:
 	drm_ref.kms_in_fence_fd = egl_ref.eglDupNativeFenceFDANDROID(egl_ref.display, gpu_fence);
 	egl_ref.eglDestroySyncKHR(egl_ref.display, gpu_fence);
 	assert(drm_ref.kms_in_fence_fd != -1);
 
 	struct gbm_bo *next_bo = gbm_surface_lock_front_buffer(gbm_ref.surface);
-	if (!next_bo) {
-		throw std::runtime_error("Failed to lock frontbuffer\n");
-	}
-
+	if (!next_bo) throw std::runtime_error("Failed to lock frontbuffer\n");
+		
 	struct drm_fb *fb = drm_fb_get_from_bo(next_bo);
-	if (!fb) {
-		throw std::runtime_error("Failed to get a new framebuffer BO\n");
-	}
+	if (!fb) throw std::runtime_error("Failed to get a new framebuffer BO\n");
 
 	if (kms_fence) {
-		EGLint status;
-
-		/* Wait on the CPU side for the _previous_ commit to
-		 * complete before we post the flip through KMS, as
-		 * atomic will reject the commit if we post a new one
-		 * whilst the previous one is still pending.
-		 */
+		// Wait on the CPU side for the _previous_ commit to
+		// complete before we post the flip through KMS, as
+		// atomic will reject the commit if we post a new one
+		// whilst the previous one is still pending.
+        EGLint status;
 		do {
-			status = egl_ref.eglClientWaitSyncKHR(egl_ref.display,
-							   kms_fence,
-							   0,
-							   EGL_FOREVER_KHR);
+			status = egl_ref.eglClientWaitSyncKHR(egl_ref.display, kms_fence, 0, EGL_FOREVER_KHR);
 		} while (status != EGL_CONDITION_SATISFIED_KHR);
 
 		egl_ref.eglDestroySyncKHR(egl_ref.display, kms_fence);
 	}
 
-	/*
-	 * Here you could also update drm plane layers if you want
-	 * hw composition
-	 */
-	if (drm_ref.drm_atomic_commit(fb->fb_id, flags)) {
-		std::runtime_error("failed to commit: " + std::string(strerror(errno)));
-	}
+	// Here you could also update drm plane layers if you want hw composition
 
-	/* release last buffer to render on again: */
-	if (bo && gbm_ref.surface)
-		gbm_surface_release_buffer(gbm_ref.surface, bo);
+	if (drm_ref.drm_atomic_commit(fb->fb_id, flags)) 
+		std::runtime_error(std::format("DRM: failed to commit: %s", strerror(errno)));
+	
+	// release last buffer to render on again: 
+	if (bo && gbm_ref.surface) gbm_surface_release_buffer(gbm_ref.surface, bo);
 	bo = next_bo;
 
-	/* Allow a modeset change for the first commit only. */
-	flags &= ~(DRM_MODE_ATOMIC_ALLOW_MODESET);
+	flags &= ~(DRM_MODE_ATOMIC_ALLOW_MODESET); // Allow a modeset change for the first commit only. 
 }
