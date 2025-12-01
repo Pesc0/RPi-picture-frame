@@ -14,3 +14,11 @@ public:
 	uint32_t format;
 	int width, height;
 };
+
+
+struct drm_fb {
+        struct gbm_bo *bo;
+        uint32_t fb_id;
+};
+struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo);
+
