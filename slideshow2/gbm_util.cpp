@@ -7,6 +7,7 @@
 #include <cstring>
 #include <stdexcept>
 
+
 GBM::GBM(const DRM &drm)
 {
 	this->dev = gbm_create_device(drm.fd);
@@ -22,10 +23,9 @@ GBM::GBM(const DRM &drm)
 						GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
 
 	if (!this->surface) {
-		throw std::runtime_error("failed to create gbm surface\n");
+		throw std::runtime_error("failed to create gbm surface");
 	}
 }
-
 
 
 
