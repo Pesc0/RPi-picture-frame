@@ -2,28 +2,9 @@
 
 #include "gbm_util.h"
 
-//#include <xf86drmMode.h>
-
-#include <errno.h>
-#include <inttypes.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <assert.h>
-#include <poll.h>
-#include <stdbool.h>
-#include <stddef.h>
+#include <cstring>
 #include <cassert>
-#include <cstring>   // for strerror
-//FIXME
-
-
-
 #include <stdexcept>
-#include "drm_util.h"
-#include "drm_fourcc.h"
 
 static bool has_ext(const char *extension_list, const char *ext)
 {
@@ -108,42 +89,39 @@ out:
 EGL::EGL(const GBM &gbm)
 {
 	const char *egl_exts_client = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
-	if (has_ext(egl_exts_client, "EGL_EXT_platform_base")) this->eglGetPlatformDisplayEXT = (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress("eglGetPlatformDisplayEXT");
+	if (has_ext(egl_exts_client, "EGL_EXT_platform_base")) 
+		this->eglGetPlatformDisplayEXT = (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress("eglGetPlatformDisplayEXT");
 
-	if (this->eglGetPlatformDisplayEXT) {
+	if (this->eglGetPlatformDisplayEXT) 
 		this->display = this->eglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_KHR, gbm.dev, NULL);
-	} else {
+	else 
 		this->display = eglGetDisplay((EGLNativeDisplayType)gbm.dev);
-	}
 
 	EGLint major, minor;
-	if (!eglInitialize(this->display, &major, &minor)) {
-		throw std::runtime_error("failed to initialize\n");
-	}
+	if (!eglInitialize(this->display, &major, &minor)) 
+		throw std::runtime_error("EGL: failed to initialize");
 
 	const char *egl_exts_dpy = eglQueryString(this->display, EGL_EXTENSIONS);
-	if (has_ext(egl_exts_dpy, "EGL_KHR_image_base"))  			 this->eglCreateImageKHR = (PFNEGLCREATEIMAGEKHRPROC)eglGetProcAddress("eglCreateImageKHR"); 
-	if (has_ext(egl_exts_dpy, "EGL_KHR_image_base"))  			 this->eglDestroyImageKHR = (PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR"); 
-	if (has_ext(egl_exts_dpy, "EGL_KHR_fence_sync"))  			 this->eglCreateSyncKHR = (PFNEGLCREATESYNCKHRPROC)eglGetProcAddress("eglCreateSyncKHR"); 
-	if (has_ext(egl_exts_dpy, "EGL_KHR_fence_sync"))  			 this->eglDestroySyncKHR = (PFNEGLDESTROYSYNCKHRPROC)eglGetProcAddress("eglDestroySyncKHR"); 
-	if (has_ext(egl_exts_dpy, "EGL_KHR_fence_sync"))  			 this->eglWaitSyncKHR = (PFNEGLWAITSYNCKHRPROC)eglGetProcAddress("eglWaitSyncKHR"); 
-	if (has_ext(egl_exts_dpy, "EGL_KHR_fence_sync"))  			 this->eglClientWaitSyncKHR = (PFNEGLCLIENTWAITSYNCKHRPROC)eglGetProcAddress("eglClientWaitSyncKHR"); 
-	if (has_ext(egl_exts_dpy, "EGL_ANDROID_native_fence_sync"))  this->eglDupNativeFenceFDANDROID = (PFNEGLDUPNATIVEFENCEFDANDROIDPROC)eglGetProcAddress("eglDupNativeFenceFDANDROID"); 
-
-	this->modifiers_supported = has_ext(egl_exts_dpy, "EGL_EXT_image_dma_buf_import_modifiers");
+	if (has_ext(egl_exts_dpy, "EGL_KHR_fence_sync")) {
+		this->eglCreateSyncKHR = (PFNEGLCREATESYNCKHRPROC)eglGetProcAddress("eglCreateSyncKHR"); 
+		this->eglDestroySyncKHR = (PFNEGLDESTROYSYNCKHRPROC)eglGetProcAddress("eglDestroySyncKHR"); 
+		this->eglWaitSyncKHR = (PFNEGLWAITSYNCKHRPROC)eglGetProcAddress("eglWaitSyncKHR"); 
+		this->eglClientWaitSyncKHR = (PFNEGLCLIENTWAITSYNCKHRPROC)eglGetProcAddress("eglClientWaitSyncKHR"); 
+	} 			 												
+	if (has_ext(egl_exts_dpy, "EGL_ANDROID_native_fence_sync"))  
+		this->eglDupNativeFenceFDANDROID = (PFNEGLDUPNATIVEFENCEFDANDROIDPROC)eglGetProcAddress("eglDupNativeFenceFDANDROID"); 
 
 	printf("Using display %p with EGL version %d.%d\n", this->display, major, minor);
 	printf("===================================\n");
 	printf("EGL information:\n");
 	printf("  version: \"%s\"\n", eglQueryString(this->display, EGL_VERSION));
 	printf("  vendor: \"%s\"\n", eglQueryString(this->display, EGL_VENDOR));
-	printf("  client extensions: \"%s\"\n", egl_exts_client);
-	printf("  display extensions: \"%s\"\n", egl_exts_dpy);
+	//printf("  client extensions: \"%s\"\n", egl_exts_client);
+	//printf("  display extensions: \"%s\"\n", egl_exts_dpy);
 	printf("===================================\n");
 
-	if (!eglBindAPI(EGL_OPENGL_ES_API)) {
-		throw std::runtime_error("failed to bind api EGL_OPENGL_ES_API\n");
-	}
+	if (!eglBindAPI(EGL_OPENGL_ES_API)) 
+		throw std::runtime_error("EGL: failed to bind api EGL_OPENGL_ES_API");
 
 	const EGLint config_attribs[] = {
 		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
@@ -164,17 +142,13 @@ EGL::EGL(const GBM &gbm)
 		EGL_NONE
 	};
 	this->context = eglCreateContext(this->display, this->config, EGL_NO_CONTEXT, context_attribs);
-	if (this->context == EGL_NO_CONTEXT) {
-		throw std::runtime_error("failed to create context\n");
-	}
-
-
-	this->surface = eglCreateWindowSurface(this->display, this->config, (EGLNativeWindowType)gbm.surface, NULL);
-	if (this->surface == EGL_NO_SURFACE) {
-		throw std::runtime_error("failed to create egl surface\n");
-	}
+	if (this->context == EGL_NO_CONTEXT) 
+		throw std::runtime_error("EGL: failed to create context");
 	
-
+	this->surface = eglCreateWindowSurface(this->display, this->config, (EGLNativeWindowType)gbm.surface, NULL);
+	if (this->surface == EGL_NO_SURFACE) 
+		throw std::runtime_error("EGL: failed to create egl surface");
+	
 	/* connect the context to the surface */
 	eglMakeCurrent(this->display, this->surface, this->surface, this->context);
 
@@ -184,15 +158,15 @@ EGL::EGL(const GBM &gbm)
 	printf("  shading language version: \"%s\"\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 	printf("  vendor: \"%s\"\n", glGetString(GL_VENDOR));
 	printf("  renderer: \"%s\"\n", glGetString(GL_RENDERER));
+	//printf("  extensions: \"%s\"\n", gl_exts);
 	printf("===================================\n");
-
 
     if (!this->eglDupNativeFenceFDANDROID ||
 	    !this->eglCreateSyncKHR ||
 	    !this->eglDestroySyncKHR ||
 	    !this->eglWaitSyncKHR ||
 	    !this->eglClientWaitSyncKHR)
-			throw std::runtime_error("casino");
+			throw std::runtime_error("EGL: Does not have the required extensions for atomic drm");
 }
 
 EGLSyncKHR EGL::create_fence(int fd)
@@ -201,24 +175,8 @@ EGLSyncKHR EGL::create_fence(int fd)
 		EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fd,
 		EGL_NONE,
 	};
-	EGLSyncKHR fence = this->eglCreateSyncKHR(this->display,
-			EGL_SYNC_NATIVE_FENCE_ANDROID, attrib_list);
+	EGLSyncKHR fence = this->eglCreateSyncKHR(this->display, EGL_SYNC_NATIVE_FENCE_ANDROID, attrib_list);
 	assert(fence);
 	return fence;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
